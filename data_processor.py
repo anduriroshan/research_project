@@ -141,3 +141,9 @@ class DataProcessor:
             ax.grid(True)
 
         return fig_full, fig_anode, fig_cathode
+
+    def get_cycle_data(self, file_path):
+        """Returns full cycle data, anode data, and cathode data."""
+        full_cycle = self.extract_second_cycle(file_path)
+        anode, cathode = self.split_anode_cathode(full_cycle)
+        return full_cycle, anode, cathode
