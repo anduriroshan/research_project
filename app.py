@@ -83,6 +83,57 @@ else:
         st.session_state.show_fitted_graphs = False
         st.rerun()
 
+
+# Show k1 & k2 Graphs Button
+if "show_k1_k2_graphs" not in st.session_state:
+    st.session_state.show_k1_k2_graphs = False
+
+if not st.session_state.show_k1_k2_graphs:
+    if st.button("View k1 & k2 Graphs"):
+        st.session_state.show_k1_k2_graphs = True
+        st.rerun()
+else:
+    if st.button("Close k1 & k2 Graphs"):
+        st.session_state.show_k1_k2_graphs = False
+        st.rerun()
+
+# k1 & k2 Graph Visualization
+if st.session_state.show_k1_k2_graphs:
+    st.subheader("k1 & k2 Computation")
+
+    file_paths = list(st.session_state.file_map.values())
+    scan_rates = st.session_state.scan_rates
+
+    results = solver.process_all_scan_rates(file_paths, scan_rates, target_voltage=0.6)
+
+    st.write(f"### Anode Half: k1 = {results['anode']['k1']:.4f}, k2 = {results['anode']['k2']:.4f}")
+    solver.plot_k1_k2(results["anode"]["x"], results["anode"]["y"], results["anode"]["k1"], results["anode"]["k2"], "Anode Half - k1 & k2 Fit")
+
+    st.write(f"### Cathode Half: k1 = {results['cathode']['k1']:.4f}, k2 = {results['cathode']['k2']:.4f}")
+    solver.plot_k1_k2(results["cathode"]["x"], results["cathode"]["y"], results["cathode"]["k1"], results["cathode"]["k2"], "Cathode Half - k1 & k2 Fit")
+
+if st.session_state.show_k1_k2_graphs:
+    st.subheader("Capacitive vs Diffusion-Controlled Contributions")
+
+    file_paths = list(st.session_state.file_map.values())
+    scan_rates = st.session_state.scan_rates
+
+    results = solver.process_all_scan_rates(file_paths, scan_rates, target_voltage=0.6)
+
+    for i, scan_rate in enumerate(scan_rates):
+        st.write(f"### Scan Rate: {scan_rate} mV/s")
+        
+        # Anode Half
+        anode_cap = results["anode"]["capacitive"][i]
+        anode_diff = results["anode"]["diffusion"][i]
+        st.write(f"**Anode:** Capacitive: {anode_cap:.2f}%, Diffusion-Controlled: {anode_diff:.2f}%")
+
+        # Cathode Half
+        cathode_cap = results["cathode"]["capacitive"][i]
+        cathode_diff = results["cathode"]["diffusion"][i]
+        st.write(f"**Cathode:** Capacitive: {cathode_cap:.2f}%, Diffusion-Controlled: {cathode_diff:.2f}%")
+
+
 # Graph Visualization Section
 if st.session_state.show_graphs:
     st.subheader("Graph Visualization")
