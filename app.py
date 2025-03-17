@@ -107,10 +107,22 @@ if st.session_state.show_k1_k2_graphs:
     results = solver.process_all_scan_rates(file_paths, scan_rates, target_voltage=0.6)
 
     st.write(f"### Anode Half: k1 = {results['anode']['k1']:.4f}, k2 = {results['anode']['k2']:.4f}")
-    solver.plot_k1_k2(results["anode"]["x"], results["anode"]["y"], results["anode"]["k1"], results["anode"]["k2"], "Anode Half - k1 & k2 Fit")
+    solver.plot_k1_k2(
+        results["anode"]["voltage"],  # Updated from "x"
+        results["anode"]["current"],  # Updated from "y"
+        results["anode"]["k1"],
+        results["anode"]["k2"],
+        "Anode Half - k1 & k2 Fit"
+    )
 
     st.write(f"### Cathode Half: k1 = {results['cathode']['k1']:.4f}, k2 = {results['cathode']['k2']:.4f}")
-    solver.plot_k1_k2(results["cathode"]["x"], results["cathode"]["y"], results["cathode"]["k1"], results["cathode"]["k2"], "Cathode Half - k1 & k2 Fit")
+    solver.plot_k1_k2(
+        results["cathode"]["voltage"],  # Updated from "x"
+        results["cathode"]["current"],  # Updated from "y"
+        results["cathode"]["k1"],
+        results["cathode"]["k2"],
+        "Cathode Half - k1 & k2 Fit"
+    )
 
 if st.session_state.show_k1_k2_graphs:
     st.subheader("Capacitive vs Diffusion-Controlled Contributions")
@@ -132,6 +144,53 @@ if st.session_state.show_k1_k2_graphs:
         cathode_cap = results["cathode"]["capacitive"][i]
         cathode_diff = results["cathode"]["diffusion"][i]
         st.write(f"**Cathode:** Capacitive: {cathode_cap:.2f}%, Diffusion-Controlled: {cathode_diff:.2f}%")
+
+# Ensure session state key exists
+if "show_edlc_pseudo_graphs" not in st.session_state:
+    st.session_state.show_edlc_pseudo_graphs = False
+
+# Show button to toggle graphs
+if not st.session_state.show_edlc_pseudo_graphs:
+    if st.button("View EDLC & Pseudo-Capacitive Currents vs Voltage", key="view_edlc_pseudo"):
+        st.session_state.show_edlc_pseudo_graphs = True
+        st.rerun()
+else:
+    if st.button("Close EDLC & Pseudo-Capacitive Currents vs Voltage", key="close_edlc_pseudo"):
+        st.session_state.show_edlc_pseudo_graphs = False
+        st.rerun()
+
+if st.session_state.show_edlc_pseudo_graphs:
+    st.subheader("EDLC & Pseudo-Capacitive Current Visualization")
+
+    file_paths = list(st.session_state.file_map.values())
+    scan_rates = st.session_state.scan_rates
+
+    # Get results from equation_solver
+    results = solver.process_all_scan_rates(file_paths, scan_rates)
+
+    for file_path, scan_rate in zip(file_paths, scan_rates):
+        st.write(f"### Scan Rate: {scan_rate} mV/s")
+
+        edlc_percentage_anode = results["anode"]["capacitive"]
+        pseudo_percentage_anode = results["anode"]["diffusion"]
+        edlc_percentage_cathode = results["cathode"]["capacitive"]
+        pseudo_percentage_cathode = results["cathode"]["diffusion"]
+
+        # Plot EDLC & pseudo-capacitive currents
+        fig_anode, fig_cathode = solver.plot_edlc_pseudo_split_curves(
+    file_path, f"Scan Rate {scan_rate}",
+    edlc_percentage_anode[scan_rates.index(scan_rate)],  
+    pseudo_percentage_anode[scan_rates.index(scan_rate)],  
+    edlc_percentage_cathode[scan_rates.index(scan_rate)],  
+    pseudo_percentage_cathode[scan_rates.index(scan_rate)]  
+)
+
+
+
+
+        st.pyplot(fig_anode)
+        st.pyplot(fig_cathode)
+
 
 
 # Graph Visualization Section

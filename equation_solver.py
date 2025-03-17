@@ -80,25 +80,75 @@ class EquationSolver:
         cathode_cap, cathode_diff = self.compute_contributions(scan_rates, k1_cathode, k2_cathode, cathode_currents)
 
         return {
-        "anode": {
-            "k1": k1_anode,
-            "k2": k2_anode,
-            "x": x_anode,  # Add this
-            "y": y_anode,  # Add this
-            "capacitive": anode_cap,
-            "diffusion": anode_diff
-        },
-        "cathode": {
-            "k1": k1_cathode,
-            "k2": k2_cathode,
-            "x": x_cathode,  # Add this
-            "y": y_cathode,  # Add this
-            "capacitive": cathode_cap,
-            "diffusion": cathode_diff
-        },
-    }
+    "anode": {
+        "k1": k1_anode,
+        "k2": k2_anode,
+        "voltage": x_anode,  # Store x as voltage
+        "current": y_anode,  # Rename y for clarity
+        "capacitive": anode_cap,
+        "diffusion": anode_diff
+    },
+    "cathode": {
+        "k1": k1_cathode,
+        "k2": k2_cathode,
+        "voltage": x_cathode,  # Store x as voltage
+        "current": y_cathode,  # Rename y for clarity
+        "capacitive": cathode_cap,
+        "diffusion": cathode_diff
+    },
+}
 
-    
+
+    def plot_edlc_pseudo_split_curves(self, file_path, title, edlc_percentage_anode, pseudo_percentage_anode, edlc_percentage_cathode, pseudo_percentage_cathode):
+        """Plots EDLC and pseudo-capacitive currents separately for anode and cathode."""
+        cycle_df = self.processor.extract_second_cycle(file_path)
+        anode_df, cathode_df = self.processor.split_anode_cathode(cycle_df)
+
+        # Ensure edlc_percentage_anode is a single scalar value
+        if not np.isscalar(edlc_percentage_anode):
+            edlc_percentage_anode = edlc_percentage_anode[0]  # Take the first value
+
+        if not np.isscalar(pseudo_percentage_anode):
+            pseudo_percentage_anode = pseudo_percentage_anode[0]
+
+        if not np.isscalar(edlc_percentage_cathode):
+            edlc_percentage_cathode = edlc_percentage_cathode[0]
+
+        if not np.isscalar(pseudo_percentage_cathode):
+            pseudo_percentage_cathode = pseudo_percentage_cathode[0]
+
+        # Now, the multiplication will work correctly
+        anode_df["EDLC_Current"] = (edlc_percentage_anode / 100) * anode_df["WE(1).Current (A)"]
+        anode_df["Pseudo_Current"] = (pseudo_percentage_anode / 100) * anode_df["WE(1).Current (A)"]
+
+        cathode_df["EDLC_Current"] = (edlc_percentage_cathode / 100) * cathode_df["WE(1).Current (A)"]
+        cathode_df["Pseudo_Current"] = (pseudo_percentage_cathode / 100) * cathode_df["WE(1).Current (A)"]
+
+        # Plot Anode Half
+        fig_anode, ax_anode = plt.subplots(figsize=(8, 6))
+        ax_anode.scatter(anode_df["WE(1).Potential (V)"], anode_df["WE(1).Current (A)"], s=5, alpha=0.7, label="Total Anode Current", color="black")
+        ax_anode.scatter(anode_df["WE(1).Potential (V)"], anode_df["EDLC_Current"], s=5, alpha=0.7, label="EDLC Current", color="red")
+        ax_anode.scatter(anode_df["WE(1).Potential (V)"], anode_df["Pseudo_Current"], s=5, alpha=0.7, label="Pseudo Current", color="blue")
+        ax_anode.set_xlabel("Potential (V)")
+        ax_anode.set_ylabel("Current (A)")
+        ax_anode.set_title(f"{title} - Anode Half")
+        ax_anode.legend()
+        ax_anode.grid(True)
+
+        # Plot Cathode Half
+        fig_cathode, ax_cathode = plt.subplots(figsize=(8, 6))
+        ax_cathode.scatter(cathode_df["WE(1).Potential (V)"], cathode_df["WE(1).Current (A)"], s=5, alpha=0.7, label="Total Cathode Current", color="black")
+        ax_cathode.scatter(cathode_df["WE(1).Potential (V)"], cathode_df["EDLC_Current"], s=5, alpha=0.7, label="EDLC Current", color="red")
+        ax_cathode.scatter(cathode_df["WE(1).Potential (V)"], cathode_df["Pseudo_Current"], s=5, alpha=0.7, label="Pseudo Current", color="blue")
+        ax_cathode.set_xlabel("Potential (V)")
+        ax_cathode.set_ylabel("Current (A)")
+        ax_cathode.set_title(f"{title} - Cathode Half")
+        ax_cathode.legend()
+        ax_cathode.grid(True)
+
+        return fig_anode, fig_cathode
+
+
 
     def plot_k1_k2(self, x, y, k1, k2, title):
         """Plots y = k1*x + k2 as a linear fit."""
