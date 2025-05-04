@@ -101,7 +101,7 @@ class EquationSolver:
 
     def plot_edlc_pseudo_split_curves(self, file_path, title, edlc_percentage_anode, pseudo_percentage_anode, edlc_percentage_cathode, pseudo_percentage_cathode):
         """Plots EDLC and pseudo-capacitive currents separately for anode and cathode."""
-        cycle_df = self.processor.extract_second_cycle(file_path)
+        cycle_df, _ = self.processor.extract_second_cycle(file_path)
         anode_df, cathode_df = self.processor.split_anode_cathode(cycle_df)
 
         # Ensure edlc_percentage_anode is a single scalar value
