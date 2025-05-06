@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
-from cv_predictor import predict_cv_data  # Fixed import name from predict_cv to predict_cv_data
+from cv_predictor import predict_cv_data 
 
 
 class CapacitanceAnalyzer:

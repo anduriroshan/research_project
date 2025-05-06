@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Scan Rate Data Visualizer")
+st.title("Voltammetry Workbench")
 
 # Define the directory where files are stored
 UPLOAD_DIR = "stored_csvs"
@@ -26,6 +26,8 @@ if "cv_model" not in st.session_state:
     st.session_state.cv_model = None
 if "scaler" not in st.session_state:
     st.session_state.scaler = None
+if "model_metrics" not in st.session_state:
+    st.session_state.model_metrics = {"rmse": None, "r2": None}
 
 processor = DataProcessor()
 solver = EquationSolver(poly_degree=9)
@@ -69,7 +71,7 @@ with st.sidebar:
 
 # Main View Selector
 selected_view = st.selectbox(
-    "Select Visualization", 
+    "", 
     options=[
         "None",
         "View Graphs",
@@ -198,10 +200,18 @@ elif selected_view == "CV Prediction & Capacitance Analysis":
     if st.session_state.file_map and not st.session_state.cv_model:
         st.info("Training CV prediction model...")
         
+        # Create a progress bar for training
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        status_text.text("Preparing training data...")
+        
         # Prepare training data from cathode halves
         all_data = []
-        for scan_rate, file_path in st.session_state.file_map.items():
+        for i, (scan_rate, file_path) in enumerate(st.session_state.file_map.items()):
             try:
+                progress_bar.progress((i / len(st.session_state.file_map)) * 0.3)
+                status_text.text(f"Processing data for scan rate {scan_rate} mV/s...")
+                
                 full_df, anode_df, cathode_df = processor.get_cycle_data(file_path)
                 df = pd.DataFrame({
                     'Voltage': cathode_df["WE(1).Potential (V)"],
@@ -216,13 +226,61 @@ elif selected_view == "CV Prediction & Capacitance Analysis":
         if all_data:
             training_df = pd.concat(all_data)
             
-            # Train model
-            model, scaler = train_stacking_model(training_df)
+            # Function to capture model metrics during training
+            def train_model_with_progress():
+                status_text.text("Training model... (this may take a few minutes)")
+                progress_bar.progress(0.4)
+                
+                # Create model training status log
+                training_status = st.empty()
+                training_status.text("Building model components...")
+                
+                # Train model with metrics capture
+                model, scaler, metrics = train_stacking_model(
+                    training_df, 
+                    progress_callback=lambda msg, prog: (
+                        training_status.text(msg),
+                        progress_bar.progress(0.4 + prog * 0.5)
+                    )
+                )
+                
+                progress_bar.progress(1.0)
+                status_text.text("Model training complete!")
+                return model, scaler, metrics
+            
+            # Train the model and get metrics
+            model, scaler, metrics = train_model_with_progress()
+            
+            # Store in session state
             st.session_state.cv_model = model
             st.session_state.scaler = scaler
+            st.session_state.model_metrics = metrics
+            
+            # Clear status and progress
+            progress_bar.empty()
+            status_text.empty()
+            
             st.success("Model trained successfully on cathode half data!")
         else:
             st.error("Could not train model - no valid cathode data found")
+
+    # Display model metrics if available
+    if st.session_state.model_metrics["rmse"] is not None:
+        st.subheader("Model Performance Metrics")
+        metrics_col1, metrics_col2 = st.columns(2)
+        
+        with metrics_col1:
+            st.metric(
+                "RMSE (Root Mean Squared Error)", 
+                f"{st.session_state.model_metrics['rmse']:.8f}"
+            )
+        
+        with metrics_col2:
+            st.metric(
+                "R² Score (Coefficient of Determination)",
+                f"{st.session_state.model_metrics['r2']:.6f}"
+            )
+        
 
     if st.session_state.cv_model:
         st.markdown("""
