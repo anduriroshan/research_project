@@ -31,7 +31,7 @@ class CapacitanceAnalyzer:
         potential_range = np.max(potential) - np.min(potential)
         area = self.calculate_enclosed_area(potential, current)
         scan_rate_v = scan_rate / 1000
-        capacitance = area / (2 * scan_rate_v * potential_range)
+        capacitance = area / (scan_rate_v * potential_range)
         specific_capacitance = capacitance / mass
 
         return {
