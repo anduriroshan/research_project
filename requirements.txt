@@ -3,3 +3,4 @@ numpy<2
 openpyxl
 scipy==1.9.1
 scikit-learn
+lightgbm
