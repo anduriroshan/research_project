@@ -25,8 +25,6 @@ class DataProcessor:
         self.file_map[scan_rate] = stored_path
         return stored_path
 
-
-
     def extract_second_cycle(self, file_path):
         df = pd.read_csv(file_path)
         potential_col = 'WE(1).Potential (V)'
