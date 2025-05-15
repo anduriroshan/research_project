@@ -120,10 +120,66 @@ elif selected_view == "View Fitted Curves":
 
     file_path = st.session_state.file_map.get(selected_scan_rate)
     results = solver.process_file(file_path)
-
+    
+    # Get the polynomial coefficients based on user selection
     if fitted_option == "Anode Half":
+        coeffs = results["anode"]["coeffs"]
+        poly_func = np.poly1d(coeffs)
+        
+        # Get min and max voltage from data for input ranges
+        min_v = float(results["anode"]["x"].min())
+        max_v = float(results["anode"]["x"].max())
+        
+        # Move calculation input above the graph
+        st.subheader("Calculate Current from Fitted Equation")
+        
+        # Use a single column for the voltage input
+        voltage_input = st.number_input(
+            "Enter Voltage (V):", 
+            min_value=float(min_v), 
+            max_value=float(max_v),
+            value=float(min_v + (max_v - min_v)/2),
+            step=0.01,
+            format="%.3f"
+        )
+        
+        # Add the button after the input field
+        if st.button("Calculate Current"):
+            # Calculate current using the polynomial function and display in decimal format
+            current = poly_func(voltage_input)
+            st.success(f"At {voltage_input:.3f} V, the calculated current is:\n\n**{current:.6f} A**")
+        
+        # Now display the graph
         solver.plot_fitted_curve(results["anode"]["x"], results["anode"]["y"], results["anode"]["fitted_y"], f"Anode Half - Fitted Curve (Scan {selected_scan_rate})")
+        
     elif fitted_option == "Cathode Half":
+        coeffs = results["cathode"]["coeffs"]
+        poly_func = np.poly1d(coeffs)
+        
+        # Get min and max voltage from data for input ranges
+        min_v = float(results["cathode"]["x"].min())
+        max_v = float(results["cathode"]["x"].max())
+        
+        # Move calculation input above the graph
+        st.subheader("Calculate Current from Fitted Equation")
+        
+        # Use a single column for the voltage input
+        voltage_input = st.number_input(
+            "Enter Voltage (V):", 
+            min_value=float(min_v), 
+            max_value=float(max_v),
+            value=float(min_v + (max_v - min_v)/2),
+            step=0.01,
+            format="%.3f"
+        )
+        
+        # Add the button after the input field
+        if st.button("Calculate Current"):
+            # Calculate current using the polynomial function and display in decimal format
+            current = poly_func(voltage_input)
+            st.success(f"At {voltage_input:.3f} V, the calculated current is:\n\n**{current:.6f} A**")
+        
+        # Now display the graph
         solver.plot_fitted_curve(results["cathode"]["x"], results["cathode"]["y"], results["cathode"]["fitted_y"], f"Cathode Half - Fitted Curve (Scan {selected_scan_rate})")
 
 elif selected_view == "View k1 & k2 Graphs":
@@ -174,24 +230,25 @@ elif selected_view == "View EDLC & Pseudo-Capacitive Currents":
 
     results = solver.process_all_scan_rates(file_paths, scan_rates)
 
-    for file_path, scan_rate in zip(file_paths, scan_rates):
-        st.write(f"### Scan Rate: {scan_rate} mV/s")
+    # Dropdown to select scan rate
+    selected_scan_rate = st.selectbox("Select Scan Rate to Visualize", scan_rates)
+    selected_index = scan_rates.index(selected_scan_rate)
+    file_path = st.session_state.file_map[selected_scan_rate]
 
-        edlc_percentage_anode = results["anode"]["capacitive"][scan_rates.index(scan_rate)]
-        pseudo_percentage_anode = results["anode"]["diffusion"][scan_rates.index(scan_rate)]
-        edlc_percentage_cathode = results["cathode"]["capacitive"][scan_rates.index(scan_rate)]
-        pseudo_percentage_cathode = results["cathode"]["diffusion"][scan_rates.index(scan_rate)]
+    # Get corresponding contributions
+    edlc_percentage_anode = results["anode"]["capacitive"][selected_index]
+    pseudo_percentage_anode = results["anode"]["diffusion"][selected_index]
+    edlc_percentage_cathode = results["cathode"]["capacitive"][selected_index]
+    pseudo_percentage_cathode = results["cathode"]["diffusion"][selected_index]
 
-        fig_anode, fig_cathode = solver.plot_edlc_pseudo_split_curves(
-            file_path, f"Scan Rate {scan_rate}",
-            edlc_percentage_anode,
-            pseudo_percentage_anode,
-            edlc_percentage_cathode,
-            pseudo_percentage_cathode
-        )
-
-        st.pyplot(fig_anode)
-        st.pyplot(fig_cathode)
+    # Plot the combined EDLC + pseudo-capacitive contribution
+    solver.plot_combined_edlc_pseudo_curve(
+        file_path,
+        edlc_percentage_anode,
+        pseudo_percentage_anode,
+        edlc_percentage_cathode,
+        pseudo_percentage_cathode
+    )
 
 elif selected_view == "CV Prediction & Capacitance Analysis":
     st.subheader("CV Curve Prediction and Capacitance Analysis")

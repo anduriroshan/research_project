@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 from data_processor import DataProcessor
+import pandas as pd
 
 class EquationSolver:
     def __init__(self, poly_degree=9):
@@ -147,6 +148,62 @@ class EquationSolver:
         ax_cathode.grid(True)
 
         return fig_anode, fig_cathode
+
+    def plot_combined_edlc_pseudo_curve(self, file_path, edlc_percentage_anode, pseudo_percentage_anode,
+                                        edlc_percentage_cathode, pseudo_percentage_cathode):
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        # Use full cycle directly
+        cycle_df, _ = self.processor.extract_second_cycle(file_path)
+
+        voltage = cycle_df["WE(1).Potential (V)"].values
+        current = cycle_df["WE(1).Current (A)"].values
+
+        # Calculate average contribution percentages
+        edlc_frac = (edlc_percentage_anode + edlc_percentage_cathode) / 200
+        pseudo_frac = (pseudo_percentage_anode + pseudo_percentage_cathode) / 200
+
+        # Compute component currents
+        edlc_current = edlc_frac * current
+        pseudo_current = pseudo_frac * current
+
+        # Compute EDLC % of total current (optional info)
+        area_total = np.trapz(np.abs(current), voltage)
+        area_edlc = np.trapz(np.abs(edlc_current), voltage)
+        area_pseudo = np.trapz(np.abs(pseudo_current), voltage)
+        percent_edlc = 100 * area_edlc / area_total
+        percent_pseudo = 100 * area_pseudo / area_total
+
+        # Plot
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # Plot total current from full cycle (normal + reverse scan)
+        
+
+        # Fill areas for EDLC and Pseudo currents
+        ax.fill_between(voltage, pseudo_current,color='yellow', label='Pseudocapacitive')
+
+        ax.fill_between(voltage, edlc_current,color='green', label='EDLC')
+        ax.plot(voltage, current, color='black', linewidth=1.5, label='Total Current')
+
+        # Add contribution text
+        ax.text(min(voltage) + 0.05 * (max(voltage) - min(voltage)),
+                np.max(np.abs(current)) * 0.8,
+                f"EDLC: {percent_edlc:.2f}%\nPseudo: {percent_pseudo:.2f}%",
+                fontsize=12, fontweight='bold',
+                bbox=dict(facecolor='white', alpha=0.7))
+
+        ax.set_xlabel("Potential (V)")
+        ax.set_ylabel("Current (A)")
+        ax.set_title("Combined EDLC + Pseudocapacitive Contribution")
+        ax.set_ylim(-1.1 * np.max(np.abs(current)), 1.1 * np.max(np.abs(current)))
+        ax.set_xlim(min(voltage), max(voltage))
+        ax.legend()
+        ax.grid(True)
+
+        plt.tight_layout()
+        st.pyplot(fig)
 
 
 
