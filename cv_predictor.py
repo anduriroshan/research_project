@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from joblib import parallel_backend, Parallel, delayed
 import os
 from sklearn.model_selection import GridSearchCV
-import numpy as np
 
 # Set number of cores to use
 n_cores = os.cpu_count() - 1  # Leave one core free for system operations
@@ -39,29 +38,21 @@ class PyTorchANN(nn.Module):
         return self.network(x)
 
 class PyTorchRegressor(BaseEstimator, RegressorMixin):
-    def __init__(self, input_dim=2, epochs=100, batch_size=128, lr=0.001, patience=5):
+    def __init__(self, input_dim, epochs=100, batch_size=128, lr=0.001, patience=5):
         self.input_dim = input_dim
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr
         self.patience = patience
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = None
+        self.model = None  # Initialize later to avoid issues with joblib
         self.criterion = nn.MSELoss()
         self.scaler_x = RobustScaler()
         self.scaler_y = StandardScaler()
         
     def fit(self, X, y):
-        # Make sure inputs are numpy arrays
-        X = np.asarray(X)
-        y = np.asarray(y)
-        
-        # Check input dimensions
-        if X.ndim == 1:
-            X = X.reshape(-1, 1)
-        
         # Initialize model here for better parallelization
-        self.model = PyTorchANN(X.shape[1]).to(self.device)
+        self.model = PyTorchANN(self.input_dim).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
         
         # Scale features and target
@@ -85,7 +76,6 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
         # Training with early stopping
         best_loss = float('inf')
         no_improve = 0
-        best_weights = None
         
         self.model.train()
         for epoch in range(self.epochs):
@@ -98,62 +88,31 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
                 self.optimizer.step()
                 epoch_loss += loss.item()
             
-            if len(loader) > 0:  # Avoid division by zero
-                epoch_loss /= len(loader)
+            epoch_loss /= len(loader)
             
             # Early stopping
             if epoch_loss < best_loss * 0.9999:  # Small threshold to avoid numerical instability
                 best_loss = epoch_loss
                 no_improve = 0
-                best_weights = self.model.state_dict().copy()
+                best_weights = self.model.state_dict()
             else:
                 no_improve += 1
                 if no_improve >= self.patience:
-                    if best_weights is not None:
-                        self.model.load_state_dict(best_weights)
+                    self.model.load_state_dict(best_weights)
                     break
         
         return self
         
     def predict(self, X):
-        # Check if model has been trained
         if self.model is None:
-            raise ValueError("Model not trained yet. Call fit() first.")
-        
-        # Convert input to numpy array if it's not already
-        X = np.asarray(X)
-        
-        # Handle single sample
-        if X.ndim == 1:
-            X = X.reshape(1, -1)
+            raise ValueError("Model not trained yet")
             
         self.model.eval()
         with torch.no_grad():
             X_scaled = self.scaler_x.transform(X)
             X_tensor = torch.FloatTensor(X_scaled).to(self.device)
             predictions = self.model(X_tensor).cpu().numpy().flatten()
-            
         return self.scaler_y.inverse_transform(predictions.reshape(-1, 1)).flatten()
-    
-    def score(self, X, y):
-        """Return R^2 score (coefficient of determination) of the prediction."""
-        y_pred = self.predict(X)
-        return r2_score(y, y_pred)
-    
-    # Add get_params and set_params for compatibility with GridSearchCV
-    def get_params(self, deep=True):
-        return {
-            "input_dim": self.input_dim,
-            "epochs": self.epochs,
-            "batch_size": self.batch_size,
-            "lr": self.lr,
-            "patience": self.patience
-        }
-    
-    def set_params(self, **parameters):
-        for parameter, value in parameters.items():
-            setattr(self, parameter, value)
-        return self
 
 def train_stacking_model(df, progress_callback=None):
     X = df[['Voltage', 'ScanRate']].values
@@ -192,10 +151,8 @@ def train_stacking_model(df, progress_callback=None):
         n_jobs=n_cores      # Utilize all cores
     )
     
-    # Initialize PyTorchRegressor with the correct input dimension
-    input_dim = X_train.shape[1]  # Get input dimension from training data
     pytorch_regressor = PyTorchRegressor(
-        input_dim=input_dim,
+        input_dim=X_train.shape[1],
         epochs=100,         # Reduced from 300
         batch_size=256,     # Larger batches for speed
         lr=0.005,           # Increased for faster convergence
@@ -218,12 +175,11 @@ def train_stacking_model(df, progress_callback=None):
     if progress_callback:
         progress_callback("Training random forest model...", 0.3)
     
-    # Create the StackingRegressor with corrected estimators
     model = StackingRegressor(
         estimators=[
             ('RF', rf_model),
             ('LGBM', lgbm_model),
-            ('PyTorch', pytorch_regressor),
+            ('PyTorch', pytorch_regressor),  # Keep PyTorch model for accuracy
         ],
         final_estimator=final_estimator,
         n_jobs=n_cores
