@@ -64,7 +64,76 @@ def train_stacking_model(df, progress_callback=None):
         lr=0.005,
         patience=5
     )
+# --- DEBUG PRINTS START ---
+    if progress_callback: # Use existing progress_callback to indicate debugging step
+        progress_callback("Debugging estimator types...", 0.15) # Arbitrary progress value
 
+    print("--- Debugging Estimator Types (cv_predictor.py) ---")
+    from sklearn.base import is_regressor, RegressorMixin # Ensure necessary imports
+
+    # Define the models you are using in the StackingRegressor
+    # Ensure these variable names (rf_model, lgbm_model, wrapped_pytorch)
+    # match what you use in StackingRegressor's estimators list.
+    
+    # Example: Ensure rf_model, lgbm_model, wrapped_pytorch are defined as they will be used
+    # rf_model = RandomForestRegressor(...)
+    # lgbm_model = lgb.LGBMRegressor(...)
+    # wrapped_pytorch = PyTorchWrapper(...) or PyTorchWrapper(PyTorchRegressor(...))
+    
+    estimators_to_check = {
+        "RandomForest": rf_model,
+        "LGBM": lgbm_model,
+        "PyTorchWrapped": wrapped_pytorch  # This is the key one
+    }
+
+    for name, est_instance in estimators_to_check.items():
+        print(f"\n[DEBUG] Checking: {name} (Instance Type: {type(est_instance).__name__})")
+        
+        # 1. Check _estimator_type attribute
+        estimator_type_attr = getattr(est_instance, '_estimator_type', 'AttributeNotSet')
+        print(f"  [DEBUG] {name}._estimator_type: {estimator_type_attr}")
+        
+        # 2. Check isinstance(est_instance, RegressorMixin)
+        is_regressor_mixin_instance = isinstance(est_instance, RegressorMixin)
+        print(f"  [DEBUG] isinstance({name}, RegressorMixin): {is_regressor_mixin_instance}")
+        
+        # 3. Check sklearn.base.is_regressor()
+        try:
+            is_sklearn_regressor_val = is_regressor(est_instance)
+            print(f"  [DEBUG] sklearn.base.is_regressor({name}): {is_sklearn_regressor_val}")
+        except Exception as e:
+            print(f"  [DEBUG] Error calling sklearn.base.is_regressor({name}): {e}")
+
+        # 4. Specifically for PyTorchWrapper, check its internal 'estimator' attribute if it exists
+        # This depends on how your PyTorchWrapper is structured.
+        # Case 1: PyTorchWrapper has an attribute like 'estimator' holding the PyTorchRegressor instance.
+        if name == "PyTorchWrapped" and hasattr(est_instance, 'estimator'):
+            internal_estimator = est_instance.estimator # The raw PyTorchRegressor object, if this structure is used
+            if internal_estimator is not None:
+                print(f"  [DEBUG] Checking internal attribute 'estimator' of {name} (Instance Type: {type(internal_estimator).__name__})")
+                internal_estimator_type_attr = getattr(internal_estimator, '_estimator_type', 'AttributeNotSet')
+                print(f"    [DEBUG] internal_estimator._estimator_type: {internal_estimator_type_attr}")
+                is_internal_regressor_mixin = isinstance(internal_estimator, RegressorMixin)
+                print(f"    [DEBUG] isinstance(internal_estimator, RegressorMixin): {is_internal_regressor_mixin}")
+                try:
+                    is_internal_sklearn_regressor = is_regressor(internal_estimator)
+                    print(f"    [DEBUG] sklearn.base.is_regressor(internal_estimator): {is_internal_sklearn_regressor}")
+                except Exception as e:
+                    print(f"    [DEBUG] Error calling sklearn.base.is_regressor(internal_estimator): {e}")
+        
+        # Case 2: PyTorchWrapper has a FITTED estimator attribute like 'estimator_' (with underscore)
+        # This might not exist yet at the validation stage (before StackingRegressor.fit())
+        if name == "PyTorchWrapped" and hasattr(est_instance, 'estimator_'):
+            fitted_internal_estimator = est_instance.estimator_
+            if fitted_internal_estimator is not None:
+                print(f"  [DEBUG] Checking internal FITTED attribute 'estimator_' of {name} (Instance Type: {type(fitted_internal_estimator).__name__})")
+                # ... (similar checks as above for fitted_internal_estimator)
+            else:
+                print(f"  [DEBUG] Internal FITTED attribute 'estimator_' of {name} is None.")
+
+
+    print("--- End Debugging Estimator Types ---")
+# --- DEBUG PRINTS END ---
     # Update progress if callback provided
     if progress_callback:
         progress_callback("Building stacked ensemble model...", 0.2)
@@ -88,6 +157,7 @@ def train_stacking_model(df, progress_callback=None):
             ('PyTorch', wrapped_pytorch),  # Keep PyTorch model for accuracy
         ],
         final_estimator=final_estimator,
+        verbose=0,
         n_jobs=n_cores
     )
     
