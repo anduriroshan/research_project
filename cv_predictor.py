@@ -16,8 +16,8 @@ import os
 from sklearn.model_selection import GridSearchCV
 
 # Set number of cores to use
-n_cores = os.cpu_count() - 1  # Leave one core free for system operations
-torch.set_num_threads(n_cores)  # Set PyTorch to use multiple cores
+n_cores = max(1, os.cpu_count() - 1)
+torch.set_num_threads(n_cores) # Set PyTorch to use multiple cores
 
 # Improved PyTorch ANN Model with faster convergence
 class PyTorchANN(nn.Module):

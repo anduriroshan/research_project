@@ -208,19 +208,20 @@ elif selected_view == "View k1 & k2 Graphs":
         "Cathode Half - k1 & k2 Fit"
     )
 
-    st.subheader("Capacitive vs Diffusion-Controlled Contributions")
+    st.subheader("Capacitive vs Pseudocapacitive Contributions")
     for i, scan_rate in enumerate(scan_rates):
-        st.write(f"### Scan Rate: {scan_rate} mV/s")
-        
-        # Anode Half
-        anode_cap = results["anode"]["capacitive"][i]
-        anode_diff = results["anode"]["diffusion"][i]
-        st.write(f"**Anode:** Capacitive: {anode_cap:.2f}%, Diffusion-Controlled: {anode_diff:.2f}%")
+        # Average capacitive contribution from both halves
+        cap_percent = (
+            results["anode"]["capacitive"][i] + results["cathode"]["capacitive"][i]
+        ) / 2
 
-        # Cathode Half
-        cathode_cap = results["cathode"]["capacitive"][i]
-        cathode_diff = results["cathode"]["diffusion"][i]
-        st.write(f"**Cathode:** Capacitive: {cathode_cap:.2f}%, Diffusion-Controlled: {cathode_diff:.2f}%")
+        # Pseudocapacitive is the remainder
+        pseudo_percent = 100 - cap_percent
+
+        st.write(f"### Scan Rate: {scan_rate} mV/s")
+        st.write(f"**EDLC (Capacitive):** {cap_percent:.2f}%")
+        st.write(f"**Pseudocapacitive:** {pseudo_percent:.2f}%")
+
 
 elif selected_view == "View EDLC & Pseudo-Capacitive Currents":
     st.subheader("EDLC & Pseudo-Capacitive Current Visualization")

@@ -182,7 +182,7 @@ class EquationSolver:
         
 
         # Fill areas for EDLC and Pseudo currents
-        ax.fill_between(voltage, pseudo_current,color='yellow', label='Pseudocapacitive')
+        #ax.fill_between(voltage, pseudo_current,color='yellow', label='Pseudocapacitive')
 
         ax.fill_between(voltage, edlc_current,color='green', label='EDLC')
         ax.plot(voltage, current, color='black', linewidth=1.5, label='Total Current')
@@ -190,7 +190,7 @@ class EquationSolver:
         # Add contribution text
         ax.text(min(voltage) + 0.05 * (max(voltage) - min(voltage)),
                 np.max(np.abs(current)) * 0.8,
-                f"EDLC: {percent_edlc:.2f}%\nPseudo: {percent_pseudo:.2f}%",
+                f"EDLC: {percent_edlc:.2f}%\nPseudo: {100-percent_edlc:.2f}%",
                 fontsize=12, fontweight='bold',
                 bbox=dict(facecolor='white', alpha=0.7))
 
@@ -199,7 +199,7 @@ class EquationSolver:
         ax.set_title("Combined EDLC + Pseudocapacitive Contribution")
         ax.set_ylim(-1.1 * np.max(np.abs(current)), 1.1 * np.max(np.abs(current)))
         ax.set_xlim(min(voltage), max(voltage))
-        ax.legend()
+        ax.legend(['Legend'], loc=4)
         ax.grid(True)
 
         plt.tight_layout()
