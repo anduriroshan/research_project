@@ -5,7 +5,30 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+from sklearn.base import clone
+from sklearn.utils.metaestimators import _BaseComposition
 
+class PyTorchWrapper(_BaseComposition):
+    """Wrapper to make PyTorchRegressor fully compatible with scikit-learn"""
+    def __init__(self, estimator):
+        self.estimator = estimator
+        
+    def fit(self, X, y):
+        # Clone the estimator to ensure a fresh copy
+        self.estimator_ = clone(self.estimator)
+        self.estimator_.fit(X, y)
+        return self
+        
+    def predict(self, X):
+        return self.estimator_.predict(X)
+    
+    def get_params(self, deep=True):
+        return {'estimator': self.estimator}
+    
+    def set_params(self, **params):
+        if 'estimator' in params:
+            self.estimator = params['estimator']
+        return self
 # Improved PyTorch ANN Model with faster convergence
 class PyTorchANN(nn.Module):
     def __init__(self, input_dim):

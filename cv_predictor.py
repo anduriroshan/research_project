@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from joblib import parallel_backend, Parallel, delayed
 import os
 from sklearn.model_selection import GridSearchCV
-from pytorch_model import PyTorchRegressor
+from pytorch_model import PyTorchRegressor, PyTorchWrapper
 # Set number of cores to use
 n_cores = max(1, os.cpu_count() - 1)
 torch.set_num_threads(n_cores) # Set PyTorch to use multiple cores
@@ -64,7 +64,7 @@ def train_stacking_model(df, progress_callback=None):
         lr=0.005,           # Increased for faster convergence
         patience=5          # Reduced from 15
     )
-
+    wrapped_pytorch = PyTorchWrapper(pytorch_regressor)
     # Update progress if callback provided
     if progress_callback:
         progress_callback("Building stacked ensemble model...", 0.2)
@@ -85,7 +85,7 @@ def train_stacking_model(df, progress_callback=None):
         estimators=[
             ('RF', rf_model),
             ('LGBM', lgbm_model),
-            ('PyTorch', pytorch_regressor),  # Keep PyTorch model for accuracy
+            ('PyTorch', wrapped_pytorch),  # Keep PyTorch model for accuracy
         ],
         final_estimator=final_estimator,
         n_jobs=n_cores
