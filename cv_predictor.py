@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
+from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import train_test_split, KFold
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.ensemble import RandomForestRegressor, StackingRegressor, GradientBoostingRegressor
 from sklearn.linear_model import RidgeCV, LassoCV
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.metrics import root_mean_squared_error, r2_score
 import lightgbm as lgb
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -13,11 +15,82 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from joblib import parallel_backend, Parallel, delayed
 import os
+import sklearn
+import sys
 from sklearn.model_selection import GridSearchCV
 from pytorch_model import PyTorchRegressor,PyTorchWrapper
 # Set number of cores to use
 n_cores = max(1, os.cpu_count() - 1)
 torch.set_num_threads(n_cores) # Set PyTorch to use multiple cores
+
+
+class ForceRegressorWrapper(BaseEstimator, RegressorMixin):
+    """
+    A simple wrapper to explicitly declare estimator type for another estimator.
+    Accepts parameters for the internal PyTorchWrapper.
+    """
+    _estimator_type = "regressor" # Force this attribute
+
+    # Accept the same parameters as PyTorchWrapper
+    def __init__(self, input_dim=2, epochs=100, batch_size=128, lr=0.001, patience=5):
+        # Store these parameters on the wrapper instance
+        self.input_dim = input_dim
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.lr = lr
+        self.patience = patience
+
+        # The actual PyTorchWrapper instance will be created in fit
+        self.estimator_ = None
+        self.is_fitted_ = False # Initialize fitted state
+
+
+    # Implement __sklearn_is_fitted__ for robustness
+    def __sklearn_is_fitted__(self):
+        # The wrapper is fitted if the internal estimator exists and is fitted
+        return hasattr(self, 'estimator_') and hasattr(self.estimator_, 'is_fitted_') and self.estimator_.is_fitted_
+
+
+    def fit(self, X, y):
+        # Create the internal PyTorchWrapper instance using the parameters
+        # stored on the ForceRegressorWrapper instance.
+        self.estimator_ = PyTorchWrapper(
+            input_dim=self.input_dim,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            lr=self.lr,
+            patience=self.patience
+        )
+
+        # Delegate fit to the wrapped estimator
+        self.estimator_.fit(X, y)
+
+        # Mark the wrapper as fitted
+        self.is_fitted_ = True
+
+        # Also store X shape for later validation (optional but good practice)
+        self.n_features_in_ = X.shape[1]
+
+        return self
+
+    def predict(self, X):
+        # Check if the wrapper is fitted
+        if not self.__sklearn_is_fitted__():
+             raise NotFittedError(
+                f"This {self.__class__.__name__} instance is not fitted yet. "
+                f"Call 'fit' with appropriate arguments before using this estimator."
+            )
+
+        # The internal estimator should also be fitted if the wrapper is fitted,
+        # but we can add an extra check for safety.
+        if not hasattr(self, 'estimator_') or self.estimator_ is None:
+             raise NotFittedError(
+                f"The internal estimator 'estimator_' does not exist or is None. "
+                f"This {self.__class__.__name__} instance is not properly fitted."
+            )
+
+        # Delegate predict to the wrapped estimator
+        return self.estimator_.predict(X)
 
 
 def train_stacking_model(df, progress_callback=None):
@@ -55,17 +128,19 @@ def train_stacking_model(df, progress_callback=None):
         reg_alpha=0.1,
         reg_lambda=0.1,
         random_state=42,
-        verbose=0,
+        verbose=-1,
         n_jobs=n_cores      # Utilize all cores
     )
     
-    wrapped_pytorch = PyTorchWrapper(
-        input_dim=X_train.shape[1], # Pass input_dim here
-        epochs=100,
-        batch_size=256,
-        lr=0.005,
-        patience=5
-    )
+    pytorch_params = {
+        'input_dim': X_train.shape[1],
+        'epochs': 100,
+        'batch_size': 256,
+        'lr': 0.005,
+        'patience': 5
+    }
+
+    pytorch_for_stacking = ForceRegressorWrapper(**pytorch_params)
 # --- DEBUG PRINTS START ---
     if progress_callback: # Use existing progress_callback to indicate debugging step
         progress_callback("Debugging estimator types...", 0.15) # Arbitrary progress value
@@ -86,7 +161,8 @@ def train_stacking_model(df, progress_callback=None):
     estimators_to_check = {
         "RandomForest": rf_model,
         "LGBM": lgbm_model,
-        "PyTorchWrapped": wrapped_pytorch  # This is the key one
+        #"PyTorchWrapped": wrapped_pytorch, # Keep original for detailed debug if needed
+        "PyTorchForStacking": pytorch_for_stacking # Check the wrapped one too
     }
 
     for name, est_instance in estimators_to_check.items():
@@ -162,6 +238,11 @@ def train_stacking_model(df, progress_callback=None):
 
     print("--- End Debugging Estimator Types ---")
 # --- DEBUG PRINTS END ---
+    print(f"\n[DEBUG] sklearn version in cloud: {sklearn.__version__}")
+    print(f"[DEBUG] Python version in cloud: {sys.version}")
+    print(f"[DEBUG] sys.path in cloud:")
+    for p in sys.path:
+        print(f"  {p}")
 
     # Update progress if callback provided
     if progress_callback:
@@ -172,6 +253,7 @@ def train_stacking_model(df, progress_callback=None):
         n_estimators=100,    # Reduced from 100
         learning_rate=0.05,  # Increased for faster convergence
         max_depth=3,
+        verbose=0,
         random_state=42
     )
     
@@ -183,10 +265,9 @@ def train_stacking_model(df, progress_callback=None):
         estimators=[
             ('RF', rf_model),
             ('LGBM', lgbm_model),
-            ('PyTorch', wrapped_pytorch),  # Keep PyTorch model for accuracy
+            ('PyTorch', pytorch_for_stacking),  # Keep PyTorch model for accuracy
         ],
         final_estimator=final_estimator,
-        verbose=0,
         n_jobs=n_cores
     )
     
