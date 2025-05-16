@@ -1,5 +1,6 @@
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -23,6 +24,7 @@ class PyTorchANN(nn.Module):
     def forward(self, x):
         return self.network(x)
 
+
 class PyTorchRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, input_dim, epochs=100, batch_size=128, lr=0.001, patience=5):
         self.input_dim = input_dim
@@ -31,12 +33,13 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
         self.lr = lr
         self.patience = patience
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = None  # Initialize later to avoid issues with joblib
+        self.model = None
         self.criterion = nn.MSELoss()
         self.scaler_x = RobustScaler()
         self.scaler_y = StandardScaler()
         
     def fit(self, X, y):
+        X, y = check_X_y(X, y, multi_output=False)
         # Initialize model here for better parallelization
         self.model = PyTorchANN(self.input_dim).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-4)
@@ -90,12 +93,26 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
         return self
         
     def predict(self, X):
-        if self.model is None:
-            raise ValueError("Model not trained yet")
-            
+        check_is_fitted(self)
+        X = check_array(X)
+        
         self.model.eval()
         with torch.no_grad():
             X_scaled = self.scaler_x.transform(X)
             X_tensor = torch.FloatTensor(X_scaled).to(self.device)
             predictions = self.model(X_tensor).cpu().numpy().flatten()
         return self.scaler_y.inverse_transform(predictions.reshape(-1, 1)).flatten()
+    
+    def get_params(self, deep=True):
+        return {
+            'input_dim': self.input_dim,
+            'epochs': self.epochs,
+            'batch_size': self.batch_size,
+            'lr': self.lr,
+            'patience': self.patience
+        }
+    
+    def set_params(self, **parameters):
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+        return self
