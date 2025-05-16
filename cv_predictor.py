@@ -43,6 +43,7 @@ def train_stacking_model(df, progress_callback=None):
         max_depth=8,       # Slightly reduced complexity
         min_samples_split=5,
         random_state=42,
+        verbose=0,
         n_jobs=n_cores     # Utilize all cores
     )
     
@@ -54,6 +55,7 @@ def train_stacking_model(df, progress_callback=None):
         reg_alpha=0.1,
         reg_lambda=0.1,
         random_state=42,
+        verbose=0,
         n_jobs=n_cores      # Utilize all cores
     )
     

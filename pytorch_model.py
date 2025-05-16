@@ -1,13 +1,14 @@
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.base import BaseEstimator, RegressorMixin, clone
+from sklearn.base import BaseEstimator, RegressorMixin, clone, is_regressor
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.exceptions import NotFittedError # Import NotFittedError
 from sklearn.utils.metaestimators import _BaseComposition # Can still be useful for some meta-estimator behaviors if needed
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
-# PyTorchANN class remains the same
+# PyTorchANN class with fixed forward method
 class PyTorchANN(nn.Module):
     def __init__(self, input_dim):
         super(PyTorchANN, self).__init__()
@@ -22,9 +23,9 @@ class PyTorchANN(nn.Module):
             nn.Linear(32, 1)
         )
     def forward(self, x):
-        return self.network
+        return self.network(x)  # Fixed missing parentheses here
 
-# PyTorchRegressor class remains the same (you can keep or remove the explicit _estimator_type here)
+# PyTorchRegressor class with explicit fitted state
 class PyTorchRegressor(BaseEstimator, RegressorMixin):
     _estimator_type = "regressor" # Can be kept for good measure
 
@@ -39,6 +40,9 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
         self.criterion = nn.MSELoss()
         self.scaler_x = RobustScaler()
         self.scaler_y = StandardScaler()
+        # Initialize fitted state to False
+        self.is_fitted_ = False
+
 
     def fit(self, X, y):
         X, y = check_X_y(X, y, multi_output=False)
@@ -88,10 +92,19 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
                     break
         # Ensure best weights are loaded if loop completes or breaks due to patience
         self.model.load_state_dict(best_weights)
+
+        self.is_fitted_ = True # Explicitly mark as fitted
         return self
 
     def predict(self, X):
-        check_is_fitted(self)
+        # Check if this specific instance is fitted
+        if not self.is_fitted_:
+             raise NotFittedError(
+                f"This {self.__class__.__name__} instance is not fitted yet. "
+                f"Call 'fit' with appropriate arguments before using this estimator."
+            )
+
+        check_is_fitted(self, 'model') # Use check_is_fitted to check for the 'model' attribute
         X = check_array(X)
 
         self.model.eval()
@@ -113,48 +126,44 @@ class PyTorchRegressor(BaseEstimator, RegressorMixin):
     def set_params(self, **parameters):
         for parameter, value in parameters.items():
             setattr(self, parameter, value)
-        # Re-initialize model if relevant parameters change (e.g. input_dim),
-        # or ensure this is handled if set_params is called post-init and pre-fit.
-        # For StackingRegressor, clone usually handles re-initialization from scratch.
+        # Reset fitted state if parameters that require refitting are changed
+        # For simplicity here, we assume set_params might require refitting.
+        self.is_fitted_ = False
         return self
 
 
 # MODIFIED PyTorchWrapper
-class PyTorchWrapper(BaseEstimator, RegressorMixin): # Inherit BaseEstimator and RegressorMixin
+class PyTorchWrapper(BaseEstimator, RegressorMixin):
     """
     Wrapper to make PyTorchRegressor fully compatible with scikit-learn,
     acting as a proper scikit-learn estimator itself.
     """
-    _estimator_type = "regressor"
+    _estimator_type = "regressor" # Keep this line
+
     def __init__(self, estimator=None, # Allow passing a pre-configured estimator
                        input_dim=2, epochs=100, batch_size=128, lr=0.001, patience=5): # Or params to create one
-        
+
         # These are the parameters of the PyTorchWrapper itself
         self.input_dim = input_dim
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr
         self.patience = patience
-        
-        if estimator is not None:
-            self.estimator = estimator
-            # If estimator is provided, its params might override wrapper's params for the actual model
-            # For simplicity, we'll assume if estimator is passed, it's fully configured.
-            # Or, we can extract params from it if they are not set on wrapper:
-            # self.input_dim = getattr(estimator, 'input_dim', input_dim)
-            # ... and so on for other params
-        else:
-            # Estimator is not created here, but on fit, using the wrapper's parameters.
-            # This allows GridSearchCV to set params on the wrapper, which are then used by PyTorchRegressor.
-            self.estimator = None
+        self.estimator = estimator # Store the initial estimator or None
+        # Initialize fitted state for the wrapper
+        self.is_fitted_ = False
+
+
+    # To be fully scikit-learn compliant and ensure check_is_fitted works robustly with this wrapper:
+    def __sklearn_is_fitted__(self):
+        # Check if the internal estimator instance exists and is fitted
+        return hasattr(self, 'estimator_') and hasattr(self.estimator_, 'is_fitted_') and self.estimator_.is_fitted_
 
 
     def fit(self, X, y):
         # Create and fit the internal PyTorchRegressor instance
-        # Clone ensures that if self.estimator was pre-set, we work on a copy.
-        # If self.estimator is None, we create a new PyTorchRegressor.
         if self.estimator is not None:
-             # If an estimator instance was passed to __init__
+            # If an estimator instance was passed to __init__, clone it
             self.estimator_ = clone(self.estimator)
         else:
             # Create a new estimator using the wrapper's parameters
@@ -165,20 +174,36 @@ class PyTorchWrapper(BaseEstimator, RegressorMixin): # Inherit BaseEstimator and
                 lr=self.lr,
                 patience=self.patience
             )
-        
+
+        # Fit the internal estimator
         self.estimator_.fit(X, y)
-        self.is_fitted_ = True # For check_is_fitted on the wrapper
+
+        # Mark the wrapper as fitted
+        self.is_fitted_ = True
+
+        # Also store X shape for later validation in predict (optional but good practice)
+        self.n_features_in_ = X.shape[1]
+
         return self
 
     def predict(self, X):
-        check_is_fitted(self) # Checks self.is_fitted_
+        # Make sure the wrapper is fitted first
+        if not self.__sklearn_is_fitted__():
+             raise NotFittedError(
+                f"This {self.__class__.__name__} instance is not fitted yet. "
+                f"Call 'fit' with appropriate arguments before using this estimator."
+            )
+
+        # The internal estimator should also be fitted if the wrapper is fitted,
+        # but we can add an extra check for safety.
+        if not hasattr(self, 'estimator_'):
+             raise NotFittedError(
+                f"The internal estimator 'estimator_' does not exist. "
+                f"This {self.__class__.__name__} instance is not properly fitted."
+            )
+
+        # Use the underlying fitted estimator to make predictions
         return self.estimator_.predict(X)
 
-    # get_params and set_params are now for the PyTorchWrapper's own parameters
-    # These are automatically handled by BaseEstimator if defined in __init__
-    
-    # To be fully scikit-learn compliant and ensure check_is_fitted works robustly with this wrapper:
-    def __sklearn_is_fitted__(self):
-        # check_is_fitted will look for this method.
-        # It should return True if the estimator has been fitted.
-        return hasattr(self, 'is_fitted_') and self.is_fitted_
+    # get_params and set_params are handled by BaseEstimator based on __init__ parameters
+    # We don't need to redefine them unless we need custom logic for nested parameters.
