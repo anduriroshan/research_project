@@ -1,7 +1,7 @@
 matplotlib==3.7.2
-numpy
+numpy<2
 openpyxl
 scipy==1.9.1
 lightgbm
-scikit-learn
-torch
+scikit-learn>=1.0.0
+torch>=1.10.0
