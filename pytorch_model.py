@@ -125,6 +125,7 @@ class PyTorchWrapper(BaseEstimator, RegressorMixin): # Inherit BaseEstimator and
     Wrapper to make PyTorchRegressor fully compatible with scikit-learn,
     acting as a proper scikit-learn estimator itself.
     """
+    _estimator_type = "regressor"
     def __init__(self, estimator=None, # Allow passing a pre-configured estimator
                        input_dim=2, epochs=100, batch_size=128, lr=0.001, patience=5): # Or params to create one
         
