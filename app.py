@@ -351,9 +351,9 @@ elif selected_view == "CV Prediction & Capacitance Analysis":
         with col1:
             scan_rate = st.number_input(
                 "Scan Rate (mV/s)", 
-                min_value=float('-inf'), 
-                max_value=float('inf'), 
-                value=60
+                min_value=0.0001, 
+                max_value=1000000.00, 
+                value=60.00
             )
         with col2:
             mass = st.number_input(
