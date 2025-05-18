@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from data_processor import DataProcessor
 import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 
 class EquationSolver:
     def __init__(self, poly_degree=9):
@@ -34,13 +36,21 @@ class EquationSolver:
         return fitted_y[closest_index]
 
     def compute_k1_k2(self, scan_rates, current_values):
-        """Solves for k1 and k2 using linear regression, converting scan rate from mV/s to V/s."""
+        """Solves for k1 and k2 using sklearn's LinearRegression and returns R² score."""
         scan_rates_v = np.array(scan_rates) / 1000  # Convert from mV/s to V/s
-        x = np.sqrt(scan_rates_v)  # v^(1/2)
-        y = np.array(current_values) / x  # i/v^(1/2)
+        x = np.sqrt(scan_rates_v).reshape(-1, 1)     # v^(1/2), reshaped for sklearn
+        y = (np.array(current_values) / np.sqrt(scan_rates_v)).reshape(-1, 1)  # i / v^(1/2)
 
-        k1, k2 = np.polyfit(x, y, 1)  # Fit y = k1 * x + k2
-        return k1, k2, x, y
+        model = LinearRegression()
+        model.fit(x, y)
+
+        y_pred = model.predict(x)
+        r2 = r2_score(y, y_pred)
+
+        k1 = float(model.coef_)
+        k2 = float(model.intercept_)
+
+        return k1, k2, x.flatten(), y.flatten(), r2
 
     def compute_contributions(self, scan_rates, k1, k2, currents):
         """Computes percentage contribution of capacitive and diffusion-controlled effects."""
@@ -73,8 +83,9 @@ class EquationSolver:
             cathode_currents.append(cathode_current)
 
         # Compute k1, k2 for anode and cathode halves
-        k1_anode, k2_anode, x_anode, y_anode = self.compute_k1_k2(scan_rates, anode_currents)
-        k1_cathode, k2_cathode, x_cathode, y_cathode = self.compute_k1_k2(scan_rates, cathode_currents)
+        k1_anode, k2_anode, x_anode, y_anode, r2_anode = self.compute_k1_k2(scan_rates, anode_currents)
+        k1_cathode, k2_cathode, x_cathode, y_cathode, r2_cathode = self.compute_k1_k2(scan_rates, cathode_currents)
+
 
         # Compute percentage contributions
         anode_cap, anode_diff = self.compute_contributions(scan_rates, k1_anode, k2_anode, anode_currents)
@@ -84,18 +95,20 @@ class EquationSolver:
     "anode": {
         "k1": k1_anode,
         "k2": k2_anode,
-        "voltage": x_anode,  # Store x as voltage
-        "current": y_anode,  # Rename y for clarity
+        "voltage": x_anode,
+        "current": y_anode,
         "capacitive": anode_cap,
-        "diffusion": anode_diff
+        "diffusion": anode_diff,
+        "r2": r2_anode
     },
     "cathode": {
         "k1": k1_cathode,
         "k2": k2_cathode,
-        "voltage": x_cathode,  # Store x as voltage
-        "current": y_cathode,  # Rename y for clarity
+        "voltage": x_cathode,
+        "current": y_cathode,
         "capacitive": cathode_cap,
-        "diffusion": cathode_diff
+        "diffusion": cathode_diff,
+        "r2": r2_cathode
     },
 }
 
@@ -205,13 +218,11 @@ class EquationSolver:
         plt.tight_layout()
         st.pyplot(fig)
 
-
-
-    def plot_k1_k2(self, x, y, k1, k2, title):
+    def plot_k1_k2(self, x, y, k1, k2,r2, title):
         """Plots y = k1*x + k2 as a linear fit."""
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.scatter(x, y, color='blue', label="Actual Data")
-        ax.plot(x, k1 * x + k2, color='red', linestyle="--", label=f"Fit: y = {k1:.4f}x + {k2:.4f}")
+        ax.plot(x, k1 * x + k2, color='red', linestyle="--", label=f"Fit: y = {k1:.4f}x + {k2:.4f}\nR² = {r2:.4f}")
         ax.set_xlabel("v^(1/2)")
         ax.set_ylabel("i / v^(1/2)")
         ax.set_title(title)

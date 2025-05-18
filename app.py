@@ -190,37 +190,49 @@ elif selected_view == "View k1 & k2 Graphs":
 
     results = solver.process_all_scan_rates(file_paths, scan_rates, target_voltage=0.6)
 
-    st.write(f"### Anode Half: k1 = {results['anode']['k1']:.4f}, k2 = {results['anode']['k2']:.4f}")
+    # --- Anode Half ---
+    st.write(
+        f"### Anode Half:\n"
+        f"**k1 = {results['anode']['k1']:.4f}**, "
+        f"**k2 = {results['anode']['k2']:.4f}**, "
+        f"**R² = {results['anode']['r2']:.4f}**"
+    )
     solver.plot_k1_k2(
         results["anode"]["voltage"],
         results["anode"]["current"],
         results["anode"]["k1"],
         results["anode"]["k2"],
+        results["anode"]["r2"],  
         "Anode Half - k1 & k2 Fit"
     )
 
-    st.write(f"### Cathode Half: k1 = {results['cathode']['k1']:.4f}, k2 = {results['cathode']['k2']:.4f}")
+    # --- Cathode Half ---
+    st.write(
+        f"### Cathode Half:\n"
+        f"**k1 = {results['cathode']['k1']:.4f}**, "
+        f"**k2 = {results['cathode']['k2']:.4f}**, "
+        f"**R² = {results['cathode']['r2']:.4f}**"
+    )
     solver.plot_k1_k2(
         results["cathode"]["voltage"],
         results["cathode"]["current"],
         results["cathode"]["k1"],
         results["cathode"]["k2"],
+        results["cathode"]["r2"],  
         "Cathode Half - k1 & k2 Fit"
     )
 
     st.subheader("Capacitive vs Pseudocapacitive Contributions")
     for i, scan_rate in enumerate(scan_rates):
-        # Average capacitive contribution from both halves
         cap_percent = (
             results["anode"]["capacitive"][i] + results["cathode"]["capacitive"][i]
         ) / 2
-
-        # Pseudocapacitive is the remainder
         pseudo_percent = 100 - cap_percent
 
         st.write(f"### Scan Rate: {scan_rate} mV/s")
         st.write(f"**EDLC (Capacitive):** {cap_percent:.2f}%")
         st.write(f"**Pseudocapacitive:** {pseudo_percent:.2f}%")
+
 
 
 elif selected_view == "View EDLC & Pseudo-Capacitive Currents":
