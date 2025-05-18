@@ -1,10 +1,6 @@
-# Force TensorFlow 2.10.0 and its exact dependencies
-protobuf==3.19.6  # MUST come first
-grpcio==1.48.2
-grpcio-status==1.48.2
-tensorflow==2.10.0
-
-# Streamlit-compatible versions (tested)
-streamlit==1.35.0  # Older but stable with TF 2.10
-altair==5.5.0
-numpy==1.23.5  # Pin to avoid conflicts
+protobuf==6.31.0
+tensorflow>=2.16.0
+streamlit>=1.35.0
+grpcio>=1.62.0
+grpcio-status>=1.62.0
+tensorboard>=2.16.0
