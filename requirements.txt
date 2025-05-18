@@ -7,3 +7,4 @@ grpcio-status>=1.62.0
 scipy==1.15.3
 scikit-learn==1.4.0
 lightgbm==3.3.5
+scikeras==0.13.0
