@@ -1,6 +1,6 @@
-protobuf==6.31.0
+
+protobuf==5.26.1 
 tensorflow>=2.16.0
 streamlit>=1.35.0
 grpcio>=1.62.0
 grpcio-status>=1.62.0
-tensorboard>=2.16.0
