@@ -4,3 +4,4 @@ tensorflow>=2.16.0
 streamlit>=1.35.0
 grpcio>=1.62.0
 grpcio-status>=1.62.0
+scipy==1.15.3
