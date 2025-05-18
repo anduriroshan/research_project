@@ -7,3 +7,4 @@ protobuf==3.19.6
 scikit-learn==1.6.1
 scipy==1.15.3
 tensorflow==2.10.0
+lightgbm
