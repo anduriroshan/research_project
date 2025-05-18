@@ -1,5 +1,6 @@
-from tensorflow import keras
-from tensorflow.keras import layers
+import tensorflow as tf
+import keras
+from keras import layers
 from scikeras.wrappers import KerasRegressor
 
 def build_model(input_dim):
@@ -21,3 +22,4 @@ def get_keras_regressor(input_dim, epochs=100, batch_size=128):
         batch_size=batch_size,
         verbose=0
     )
+
