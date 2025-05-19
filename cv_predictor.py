@@ -18,7 +18,7 @@ from pytorch_model import get_keras_regressor
 import tensorflow as tf
 
 # Set number of cores to use
-n_cores = max(1, os.cpu_count() - 1)
+n_cores = os.cpu_count()-1
 tf.config.threading.set_intra_op_parallelism_threads(n_cores)
 tf.config.threading.set_inter_op_parallelism_threads(n_cores)
 

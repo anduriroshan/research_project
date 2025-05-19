@@ -382,7 +382,7 @@ elif selected_view == "CV Prediction & Capacitance Analysis":
             "Potential range (V)",
             min_value=-0.2,
             max_value=1.2,
-            value=(-0.2, 0.6),  # Typical cathode range
+            value=(0.0, 1.2),  # Typical cathode range
             step=0.01
         )
         
