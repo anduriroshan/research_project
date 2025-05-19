@@ -2,6 +2,7 @@ import tensorflow as tf
 import keras
 from keras import layers
 from scikeras.wrappers import KerasRegressor
+from keras.callbacks import EarlyStopping
 
 def build_model(input_dim):
     model = keras.Sequential([
@@ -15,11 +16,14 @@ def build_model(input_dim):
     return model
 
 def get_keras_regressor(input_dim, epochs=100, batch_size=128):
+    early_stop = EarlyStopping(monitor="loss", patience=5, restore_best_weights=True)
+
     return KerasRegressor(
         model=build_model,
         model__input_dim=input_dim,
         epochs=epochs,
         batch_size=batch_size,
+        callbacks=[early_stop],
         verbose=0
     )
 
